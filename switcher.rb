@@ -3,7 +3,7 @@ require 'json'
 require './persisted_config.rb'
 require './simple_hook.rb'
 require 'find'
-require './file_zipper.rb'
+require './file_zip_mission.rb'
 
 class Switcher
   VOICE_FILE_REGEX = /\w+audio.wpk/ # Analysis shows that this is the different file pattern
