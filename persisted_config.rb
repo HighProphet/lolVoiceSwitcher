@@ -1,5 +1,5 @@
 require 'json'
-require './simple_hook.rb'
+require_relative 'simple_hook.rb'
 require 'logger'
 
 # Persist a JSON Object into a File
@@ -12,7 +12,7 @@ class PersistedConfig
     @cfg_file_name = file_name
     @interval = interval
     @logger = logger
-    if File.file? @cfg_file_name
+    if File.file?(@cfg_file_name) && File.size?(@cfg_file_name)
       json = JSON.parse(File.read(@cfg_file_name))
       @data.merge! json
     end
@@ -26,22 +26,30 @@ class PersistedConfig
     @handler = Thread.start do
       @logger.debug 'Persistence handler is running...'
       while @running || @updated
+        wait_count = 0
         sync do
           if @updated
             if @wait
               @wait = false
               @logger.debug 'still updating, wait...'
             else
+              @logger.debug "writing config: #{@data}"
               file = File.open(@cfg_file_name, 'w')
               file.puts @data.to_json
+              file.close
               @logger.debug 'persistence completed...'
               @updated = false
             end
           else
-            @logger.debug 'nothing changed, handler vacant...'
+            if wait_count == 100
+              @logger.debug 'nothing changed, handler vacant...'
+              wait_count = 0
+            else
+              wait_count += 1
+            end
           end
         end
-        sleep 0.05
+        sleep @interval
       end
       @logger.debug('Persistence handler stopped...')
     end

@@ -12,9 +12,9 @@ module SimpleHook
     methods.each do |method|
       alias_method "old_#{method}", method
       define_method method do |*args, &block|
-        yield self, *args if occasion == :before
+        yield(self, *args) if occasion == :before
         result = send "old_#{method}", *args, &block
-        yield self, *args if occasion == :after
+        yield(self, *args) if occasion == :after
         result
       end
     end

@@ -1,9 +1,10 @@
 require 'fileutils'
 require 'json'
-require './persisted_config.rb'
-require './simple_hook.rb'
 require 'find'
-require './file_zip_mission.rb'
+require_relative 'persisted_config'
+require_relative 'simple_hook'
+require_relative 'file_zip_mission'
+require_relative 'help_generator'
 
 class Switcher
   VOICE_FILE_REGEX = /\w+audio.wpk/ # Analysis shows that this is the different file pattern
@@ -30,7 +31,7 @@ class Switcher
   
   private
   def check_essential_cfg
-    CONFIG_DEFAULT.each_with_index do |val, key|
+    CONFIG_DEFAULT.each_pair do |key, val|
       if @cfg[key].nil?
         @cfg[key] = val
       end
@@ -39,47 +40,94 @@ class Switcher
   
   def process_arguments (args)
     @args = args
-    @args.each_with_index do |arg, i|
-      if arg =~ /^--(\w+)/
-        @args[i]=$1
-      end
-    end
+    # @args.each_with_index do |arg, i|
+    #   if arg =~ /^--(\w+)/
+    #     @args[i]=$1
+    #   end
+    # end
     @opt = {}
     case @args[0]
-      when 'config', 'c'
+      when '--config', 'c', 'config'
         @opt[:opt] = :config
         @opt[:cfg_args] = {}
-        @args[1..@args.length].each do |arg|
+        @args[1...@args.length].each do |arg|
           ary = arg.split('=')
           @opt[:cfg_args][ary[0].to_sym] = ary[1]
         end
+      when '--backup', 'b', 'backup'
+        @opt[:opt] = :backup
+        @opt[:bkp_args] = {force: false, quiet: false}
+        bkp_arg_map = {f: :force, q: :quiet}
+        @args[1...@args.length].each do |arg|
+          if arg =~ /^-(\w+)/
+            $1.each_char do |c|
+              c = c.to_sym
+              if bkp_arg_map.has_key? c
+                @opt[:bkp_args][bkp_arg_map[c]] = true
+              end
+            end
+          elsif arg =~/^--(\w+)/ && @opt[:bkp_args].has_key?($1.to_sym)
+            @opt[:bkp_args][$1.to_sym] = true
+          elsif arg == @args.last
+            @opt[:bkp_args][:file_name] = arg
+          else
+            puts "Can't resolve parameter \"#{arg}\",please check your expression"
+          end
+        end
       when 'schedule', 's'
         @opt[:opt] = :schedule
-      when 'backup', 'b'
-        @opt[:opt] = :backup
       else
         @opt[:opt] = :help
     end
   end
   
+  # make local voice pack backup
   def backup
-    File.join
+    # solve override problem
+    if @cfg[:backup]
+      while true
+        print "Already have backup in archive \"#{@cfg[:backup]}\",override?(y/n)"
+        opt = gets
+        case opt
+          when /^y/i
+            break
+          when /^n/i
+            return
+          else
+            next
+        end
+      end
+    end
+    
+    # do backup
+  
   end
   
   def recover
   
   end
   
-  def resolve_voice_file_list
-    if File.directory?(@cfg[:root])
-      @client_voice_file_list = []
-      Find.find @cfg[:root] do |path|
-        @client_voice_file_list << path if path =~ VOICE_FILE_REGEX
+  def resolve_voice_file_list(strict=false)
+    if @cfg[:local_files] && @cfg[:local_files].size > 0 && !strict
+      return
+    end
+    while true
+      if File.directory?(@cfg[:root]||'')
+        @cfg[:local_files] = []
+        @cfg[:local_files] = []
+        Find.find @cfg[:root] do |path|
+          if path =~ VOICE_FILE_REGEX
+            @logger.debug "file search hit: #{path}"
+            @cfg[:local_files] << path
+          end
+        end
+        if @cfg[:local_files].size > 0
+          return
+        end
+        puts "It seems that \"#{@cfg[:root]}\" is not the root of LoL client for the program can find no voice file!"
       end
-    else
-      print 'Cannot find lol client.lol client root:'
+      print 'LoL client root:'
       @cfg[:root] = gets
-      resolve_voice_file_list
     end
   end
   
@@ -119,6 +167,26 @@ class Switcher
     HELP
     operations = [
       {
+        name: 'backup, b, --backup [options][file_name]',
+        description: [
+          'back up current client voice files into a zip file',
+          'the backup file will be named by %file_name%',
+          'if %file_name% isn\'t given,the program will decide to name it'
+        ],
+        sub_opr:
+          [{
+             name: %w(-f --force),
+             description: 'suppress overwrite warnings'
+            
+           },
+           {
+             name: %w(-q --quiet),
+             description: 'show no information'
+           }
+          
+          ]
+      },
+      {
         name: %w(schedule s --schedule),
         description: [
           ''
@@ -126,23 +194,25 @@ class Switcher
       },
       {
         name: %w(config c --config),
-        description: [
-          'set program configs'
-        ],
-        sub_opr: [{
-                    name: 'root=<lol_root>',
-                    description: [
-                      'tell the program your lol client root path',
-                      'with which you want to substitute voice pack.'
-                    ]
-                  }, {
-                    name: 'repo=<repository>',
-                    description: [
-                      'change the repository from which the prog downloads voice pack',
-                      '*WARNING* use this ONLY if you are definitely sure'
-                    ]
-          
-                  }]
+        description:
+          [
+            'set program configs'
+          ],
+        sub_opr:
+          [{
+             name: 'root=<lol_root>',
+             description: [
+               'tell the program your lol client root path',
+               'with which you want to substitute voice pack.'
+             ]
+           }, {
+             name: 'repo=<repository>',
+             description: [
+               'change the repository from which the prog downloads voice pack',
+               '*WARNING* use this ONLY if you are definitely sure'
+             ]
+            
+           }]
       }, {
         name: %w(help h --help),
         description: [
@@ -150,46 +220,17 @@ class Switcher
         ]
       }
     ]
-    puts generate_help title, operations
+    puts HelpGenerator.generate_help title, operations
   end
   
-  
-  # arg operations example
-  # [{name:['config','c','--config'], description:['first line', 'second line']}]
-  def generate_help(title=nil, operations=[], ending=nil)
-    str = StringIO.new
-    str << "\n"
-    str << "#{title}\n" if title
-    operations.each do |opr|
-      str << sprintf('%-25s', opr[:name].join(', '))
-      opr[:description].each do |d|
-        str << sprintf('%-25s', ' ') if str.string.end_with? "\n"
-        str << "#{d}\n"
-      end
-      if opr[:sub_opr]
-        opr[:sub_opr].each do |o|
-          str << sprintf('  %-23s', o[:name])
-          o[:description].each do |d|
-            str << sprintf('%-25s', ' ') if str.string.end_with? "\n"
-            str << "#{d}\n"
-          end
-        end
-      end
-      str << "\n"
-    end
-    str << "\n"
-    str << "#{ending}\n" if ending
-    str << "\n"
-    str.string
-  end
   
   Switcher.extend SimpleHook
-  Switcher.do_after(:config, :schedule, :help) {|switcher| switcher.send(:exit, 0)}
-  Switcher.do_before(:backup, :recover) {|switcher| switcher.send(:resolve_voice_file_list)}
+  Switcher.do_after(:config, :schedule, :help, :backup) {|switcher| switcher.send(:exit, 0)}
+  # Switcher.do_before(:backup, :recover) {|switcher| switcher.send(:resolve_voice_file_list)}
 
 end
 
 switcher = Switcher.new
 
-# switcher.run_program *'config root=G:/Games/英雄联盟'.split(' ')
-switcher.run_program 'help'
+switcher.run_program *'backup -fq test.zip'.split(' ')
+# switcher.run_program 'help'
