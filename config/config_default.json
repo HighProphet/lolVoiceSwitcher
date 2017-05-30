@@ -1,0 +1,13 @@
+{
+  "version": "1.0",
+  "update_dir": "data/update_files",
+  "backup": "data/lol_voice_bak",
+  "repository": "http://ol2c7b167.bkt.clouddn.com/",
+  "root": "STUB",
+  "local_files": [],
+  "voice_pack": {
+    "version": "1.0",
+    "storage": "data/switcher_voice_pack",
+    "manifest": "data/switcher_voice_pack/manifest.json"
+  }
+}

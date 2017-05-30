@@ -8,15 +8,13 @@ class PersistedConfig
   
   def initialize(file_name, default_data: {}, auto_start: true, interval: 0.05, logger: Logger.new($stdout))
     @p_mtx = Mutex.new
-    @data = {}
     @cfg_file_name = file_name
     @interval = interval
     @logger = logger
     if File.file?(@cfg_file_name) && File.size?(@cfg_file_name)
-      json = JSON.parse(File.read(@cfg_file_name))
-      @data.merge! json
+      @data = JSON.parse(File.read(@cfg_file_name, encoding: 'UTF-8'), symbolize_names: true)
     end
-    merge! default_data
+    merge! default_data unless default_data.size == 0
     start_persistence if auto_start
   end
   
@@ -28,14 +26,14 @@ class PersistedConfig
       while @running || @updated
         wait_count = 0
         sync do
-          if @updated
+          if @updated && !@pause
             if @wait
               @wait = false
               @logger.debug 'still updating, wait...'
             else
               @logger.debug "writing config: #{@data}"
               file = File.open(@cfg_file_name, 'w')
-              file.puts @data.to_json
+              file.puts JSON.pretty_generate @data
               file.close
               @logger.debug 'persistence completed...'
               @updated = false
@@ -53,6 +51,25 @@ class PersistedConfig
       end
       @logger.debug('Persistence handler stopped...')
     end
+  end
+  
+  def pause_persistence
+    @logger.debug "#{self} persistence paused"
+    if block_given?
+      @pause = true
+      begin
+        yield
+      ensure
+        resume_persistence
+      end
+    else
+      @pause = true
+    end
+  end
+  
+  def resume_persistence
+    @pause = false
+    @logger.debug "#{self} persistence resumed"
   end
   
   def stop_persistence

@@ -1,0 +1,52 @@
+Program update protocol
+1. Connect to Repository
+2. Download "manifest.json"
+3. Download other files according to manifest.json
+4. directory "data/switcher_voice_pack" stores current voice pack files
+5. directory "data/updates" stores program updates as well as voice pack updates
+
+Note
+a update "manifest.json" looks like:
+
+{
+    "versions":["1.0","1.1","1.2"],
+    "1.0":{
+        "system":[
+            {"name":"switcher/switcher.rb","md5":""},
+            {"name":"switcher/lib/simple_hook.rb","md5":""}
+        ]
+        "voice_pack":[
+            {"name":"switcher/switcher.rb","md5":""},
+            {"name":"switcher/lib/simple_hook.rb","md5":""},
+            {"name":"file_meta.json","md5":""},
+            {"name":"zip_file1.zip",md5:""}
+        ]
+    },
+    "latest_full":{
+        "version":"1.2",
+        "system":[
+            {"name":"switcher/switcher.rb","md5":""},
+            {"name":"switcher/lib/simple_hook.rb","md5":""}
+        ],
+        "voice_pack":[
+            {"name":"file_meta.json","md5":""},
+            {"name":"zip_file1.zip",md5:""}
+        ]
+    }
+}
+
+a voice_pack "manifest.json" looks like:
+
+{
+  "version": "1.0",
+  "files": [
+    [
+      "voice1.wpk",
+      "{32bt md5}"
+    ],
+    [
+      "voice2.wpk",
+      "{32bt md5}"
+    ]
+  ]
+}
